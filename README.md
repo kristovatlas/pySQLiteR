@@ -1,4 +1,4 @@
-#PySQLiteR
+# PySQLiteR
 
 A lite-r version of Python Standard Library's `sqlite3` module.
 
