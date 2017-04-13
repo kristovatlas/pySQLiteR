@@ -33,7 +33,7 @@ from enum import Enum #enum34
 # pylint: disable=R0903
 
 #version of pySQLiteR
-TBL_PYSQLITER_VERSION = 'v0.0.1'
+TBL_PYSQLITER_VERSION = 'v0.0.2'
 TBL_PYSQLITER_URL = 'https://github.com/kristovatlas/PySQLiteR'
 #table to store db info
 DB_VERSION_TBL_NAME = 'tbl_pySQLiteR_DB_VERSION'
