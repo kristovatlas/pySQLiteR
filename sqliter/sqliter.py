@@ -504,7 +504,7 @@ class DatabaseConnection(object):
                 data directory. The database version denotes schema
                 compatibility and will be stored in a special table called
                 `tbl_pySQLiteR_DB_VERSION`.
-            filenames (Optional[tulpe(str, str)]): Absolute or relative
+            filenames (Optional[tuple(str, str)]): Absolute or relative
                 filenames of the db file and log file, if not determined by the
                 `app_tuple`
             file_path_abs (Optional[bool]): Determines whether filenames
