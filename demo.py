@@ -86,14 +86,29 @@ def main():
         #4) Print first id for John Jacobs records created in the past
         print "First id for person named John Jacobs in the past:"
         where3 = Where(TBL_PERSON, limit=1)
-        record = db_con.select(
+        record1 = db_con.select(
             col_names=['id'],
             where=where3.and_(
                 where3.and_(where3.eq('fname', 'John'),
                             where3.eq('lname', 'Jacobs')),
                 where3.lt('time_added',
                           SQLRawExpression("DATETIME(CURRENT_TIMESTAMP,'+1 minute')"))))
-        print record[0]['id']
+        print "\t{0}".format(record1[0]['id'])
+
+        #5) Change John Jacobs' name to John Rockwell
+        where4 = Where(TBL_PERSON)
+        db_con.update(
+            col_val_map={'lname': 'Rockwell'},
+            where=where4.and_(
+                where4.eq('fname', 'John'),
+                where4.eq('lname', 'Jacobs')))
+        where5 = Where(TBL_PERSON)
+        record2 = db_con.select(col_names=['id'],
+            where=where5.and_(
+                where5.eq('fname', 'John'),
+                where5.eq('lname', 'Rockwell')))
+        print "First id for person named John Rockwell:"
+        print "\t{0}".format(record2[0]['id'])
 
 if __name__ == '__main__':
     main()
