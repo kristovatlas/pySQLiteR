@@ -279,24 +279,7 @@ class Where(object):
         assert is_subclass(operator_class, ComparisonExpression)
         assert self.db_table.is_valid_col(col)
 
-        arglist = []
-        resolved_val = None
-        try:
-            Reserved(val)
-            #value is a reserved keyword, don't parameterize
-            resolved_val = val.value
-        except ValueError:
-            #val is not a reserved keyword
-
-            if isinstance(val, SQLRawExpression):
-                warn(("Including raw SQL expression that may create injection "
-                      "vulnerabilities: '{0}'").format(val.expr))
-                resolved_val = val.expr
-            else:
-                #Not reserved, nor a raw express; parameterize
-                arglist = [val]
-                resolved_val = Reserved.ARG_PLACEHOLDER.value
-
+        resolved_val, arglist = parameterize_val(val)
         expr = operator_class(col, resolved_val)
 
         where_component = WhereComponent(
@@ -774,7 +757,11 @@ class DatabaseConnection(object):
         """Execute the SQL statement and return number of db changes
 
         Raises: DatabaseWriteError if statement couldn't be executed
+
+        Returns: int: Number of changes made during this SQL connection.
         """
+        print "DEBUG: sql_execute: stmt = '%s', arglist = %s" % (stmt, arglist)
+        num_changes = -1
         try:
             if arglist is not None:
                 self.conn.cursor().execute(stmt, arglist)
@@ -782,11 +769,12 @@ class DatabaseConnection(object):
                 self.conn.cursor().execute(stmt)
             self.conn.commit()
             num_changes = self.conn.total_changes
+            print "DEBUG: sql_execute: %d changes made." % num_changes
+            return num_changes
         except sqlite3.OperationalError, err:
             msg = "Unable to execute statement: {0}: {1}".format(stmt, err)
             self.log(msg, logging.ERROR)
             raise DatabaseWriteError(msg)
-        return num_changes
 
     def check_db_version(self):
         """Get the version of this database
@@ -834,26 +822,15 @@ class DatabaseConnection(object):
                 which rows are expected, built from the various expression
                 components that make up the WHERE clause.
 
+        SQL syntax: SELECT col1, col2, FROM table WHERE expression
+
         Todos:
             Maybe do some type checking on the values returned? SQLite is pretty
             relaxed on storing values, e.g. storing strings where ints go
         """
         #First, decide if fetching all rows from table or according to WHERE
         #clause.
-        db_table = None
-        where_component = None
-        assert xor('db_table' in kwargs, 'where' in kwargs)
-        for arg_name in kwargs:
-            if arg_name == 'db_table':
-                db_table = kwargs['db_table']
-            elif arg_name == 'where':
-                where_component = kwargs['where']
-                assert isinstance(where_component, WhereComponent)
-                db_table = where_component.db_table
-            else:
-                raise ValueError("Invalid argument {0} to select()".format(
-                    arg_name))
-        assert isinstance(db_table, DatabaseTable)
+        db_table, where_component = get_table_and_where_comp(**kwargs)
 
         #Build list of columns being selected
         assert isinstance(col_names, list) or col_names is None
@@ -879,6 +856,60 @@ class DatabaseConnection(object):
 
         #TODO if we want to check type of values returned, here's where to do it
         return self.fetch(stmt, arglist=arglist)
+
+    def update(self, col_val_map, **kwargs):
+        """UPDATE rows in database.
+
+        You can either UPDATE all rows, or update some rows according to a
+        WHERE clause by specifying a `WhereComponent` object.
+
+        SQL syntax: UPDATE table SET col1=va1, col2=val2 WHERE expression
+
+        Args:
+            col_val_map (dict str=>val): A map of column names and values to
+                update to
+            db_table (Optional[DatabaseTable]): The table from which to select
+                all rows and all cols, XOR
+            where (Optional[WhereComponent]): The WHERE clause used to specify
+                which rows are updated, built from the various expression
+                components that make up the WHERE clause.
+        """
+        db_table, where_component = get_table_and_where_comp(**kwargs)
+
+        #build SET statement and arglist
+        set_str = ''
+        arglist = []
+        assert isinstance(col_val_map, dict)
+        num_cols_total = len(col_val_map)
+        num_cols_added = 0
+        for col in col_val_map:
+            val  = col_val_map[col]
+            assert db_table.is_valid_col(col)
+
+            #TODO: could do type checking on value compared to col type here.
+
+            resolved_val, arglist_part = parameterize_val(val)
+            arglist = arglist + arglist_part
+
+            set_str = ''.join([set_str, "{0} = {1}".format(col, resolved_val)])
+            num_cols_added += 1
+            if num_cols_added < num_cols_total:
+                set_str = ''.join([set_str, ', '])
+
+        assert set_str != '', "SET statement missing in update()"
+
+        stmt = "UPDATE {0} SET {1}".format(db_table.name, set_str)
+
+        #build WHERE statement if applicable
+        if where_component is not None:
+            #set this expression as the root expression of the WHERE clause
+            where = where_component.where
+            where.root = where_component.expr
+            stmt = ''.join([stmt, ' ', str(where)])
+            arglist = arglist + where_component.arglist
+
+        #TODO: could check number of changes returned by sql_execute
+        self.sql_execute(stmt, arglist)
 
 # Global Functions
 
@@ -987,3 +1018,53 @@ def remove_repeat_spaces(_str):
     """
     print "DEBUG: sqliter: remove_repeat_spaces: %s" % _str
     return re.sub(r'\s+', ' ', _str).strip()
+
+def get_table_and_where_comp(**kwargs):
+    """Helper function for DatbaseConnection.select(), update(), etc.
+
+    Returns:
+        (DatabaseTable, WhereComponent or None)
+    """
+    db_table = None
+    where_component = None
+    assert xor('db_table' in kwargs, 'where' in kwargs)
+    for arg_name in kwargs:
+        if arg_name == 'db_table':
+            db_table = kwargs['db_table']
+        elif arg_name == 'where':
+            where_component = kwargs['where']
+            assert isinstance(where_component, WhereComponent)
+            db_table = where_component.db_table
+        else:
+            raise ValueError(
+                "Invalid argument {0} to get_table_and_where_comp()".format(
+                arg_name))
+    assert isinstance(db_table, DatabaseTable)
+    return (db_table, where_component)
+
+def parameterize_val(val):
+    """Given a value, determine if it needs to be parameterized and gen arglist.
+
+    Returns:
+        (value, list): The value and arglist generated. If parameterized, value
+            is set to Reserved.ARG_PLACEHOLDER and val is pushed to arglist.
+    """
+    arglist = []
+    resolved_val = None
+    try:
+        Reserved(val)
+        #value is a reserved keyword, don't parameterize
+        resolved_val = val.value
+    except ValueError:
+        #val is not a reserved keyword
+
+        if isinstance(val, SQLRawExpression):
+            warn(("Including raw SQL expression that may create injection "
+                  "vulnerabilities: '{0}'").format(val.expr))
+            resolved_val = val.expr
+        else:
+            #Not reserved, nor a raw express; parameterize
+            arglist = [val]
+            resolved_val = Reserved.ARG_PLACEHOLDER.value
+
+    return (resolved_val, arglist)
