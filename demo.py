@@ -28,11 +28,11 @@ TBL_PERSON.set_cols((('id', 'INTEGER PRIMARY KEY AUTOINCREMENT'),
 
 def main():
     """Setup db, write two person records, and read them."""
-    print "DEBUG: demo: connecting..."
+    print "DEMO: Connecting to DB..."
     with sqliter.DatabaseConnection(
         db_tables=[TBL_PERSON], app_tuple=(APP_NAME, AUTHOR, APP_VERSION)) as db_con:
 
-        print "DEBUG: demo: about to insert..."
+        print "DEMO: Populating records.."
 
         bob = {'fname': 'Bob',
                'mi': 'J',
@@ -52,7 +52,7 @@ def main():
         db_con.insert(TBL_PERSON, john_imposter)
 
         #1) print all rows
-        print "All people:"
+        print "DEMO: All people:"
         for person in db_con.select(col_names=None, db_table=TBL_PERSON):
             print "\tid={0} fname={1} mi={2} lname={3}".format(person['id'],
                                                                person['fname'],
@@ -60,7 +60,7 @@ def main():
                                                                person['lname'])
 
         #2) All rows for Johns
-        print "All people named John:"
+        print "DEMO: All people named John:"
         where1 = Where(TBL_PERSON)
         for person in db_con.select(
                 col_names=None, where=where1.eq('fname', 'John')):
@@ -70,7 +70,7 @@ def main():
                                                                person['lname'])
 
         #3) Print records for John Jacobs
-        print "All people named John Jacobs:"
+        print "DEMO: All people named John Jacobs:"
         where2 = Where(TBL_PERSON)
         for person in db_con.select(
                 col_names=None,
@@ -84,16 +84,41 @@ def main():
                                                                person['lname'])
 
         #4) Print first id for John Jacobs records created in the past
-        print "First id for person named John Jacobs in the past:"
+        print "DEMO: First id for person named John Jacobs in the past:"
         where3 = Where(TBL_PERSON, limit=1)
-        record = db_con.select(
+        record1 = db_con.select(
             col_names=['id'],
             where=where3.and_(
                 where3.and_(where3.eq('fname', 'John'),
                             where3.eq('lname', 'Jacobs')),
                 where3.lt('time_added',
                           SQLRawExpression("DATETIME(CURRENT_TIMESTAMP,'+1 minute')"))))
-        print record[0]['id']
+        print "\t{0}".format(record1[0]['id'])
+
+        #5) Change John Jacobs' name to John Rockwell
+        where4 = Where(TBL_PERSON)
+        db_con.update(
+            col_val_map={'lname': 'Rockwell'},
+            where=where4.and_(
+                where4.eq('fname', 'John'),
+                where4.eq('lname', 'Jacobs')))
+        where5 = Where(TBL_PERSON)
+        record2 = db_con.select(
+            col_names=['id'],
+            where=where5.and_(
+                where5.eq('fname', 'John'),
+                where5.eq('lname', 'Rockwell')))
+        print "DEMO: First id for person named John Rockwell:"
+        print "\t{0}".format(record2[0]['id'])
+
+        #6) Do an UPDATE that has no effect
+        where5 = Where(TBL_PERSON)
+        changed = db_con.update(
+            col_val_map={'lname': 'NOCHANGE'},
+            where=where5.eq('lname', 'DOESNTEXIST'))
+        print "DEMO: Updated any people with last name 'DOESNTEXIST' to 'NOCHANGE'?:"
+        print "\t{0}".format(str(changed))
+
 
 if __name__ == '__main__':
     main()
