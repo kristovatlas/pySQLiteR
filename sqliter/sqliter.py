@@ -32,6 +32,8 @@ from enum import Enum #enum34
 
 # pylint: disable=R0903
 
+ENALBE_DEBUG_PRINT = False
+
 #version of pySQLiteR
 TBL_PYSQLITER_VERSION = 'v0.0.2'
 TBL_PYSQLITER_URL = 'https://github.com/kristovatlas/PySQLiteR'
@@ -138,7 +140,8 @@ class BinaryLogicalExpression(LogicalExpression):
     operators.
     """
     def __init__(self, *args):
-        print "DEBUG: sqliter: BinaryLogicalExpression: %s" % str([str(x) for x in args])
+        dprint("sqliter: BinaryLogicalExpression: %s" %
+               str([str(x) for x in args]))
         for expression in args:
             assert isinstance(expression, SQLExpression)
         self.ops = args
@@ -166,8 +169,9 @@ class And(BinaryLogicalExpression):
         assert len(args) > 1, \
             "Expected 2 or more operands as args since And is a binary operator"
 
-        print "DEBUG: sqliter: And: types of args: %s" % str([type(x) for x in args])
-        print "DEBUG: sqliter: And: %s" % str([str(x) for x in args])
+        dprint("sqliter: And: types of args: %s" %
+               str([type(x) for x in args]))
+        dprint("sqliter: And: %s" % str([str(x) for x in args]))
         super(And, self).__init__(*args)
         self.op_str = 'AND'
 
@@ -242,11 +246,11 @@ class Where(object):
         for arg in args:
             assert isinstance(arg, WhereComponent)
 
-        print "DEBUG: sqliter: and_: exprs = " + str([str(x) for x in args])
+        dprint("sqliter: and_: exprs = " + str([str(x) for x in args]))
         exprs = _get_exprs(*args)
         assert len(exprs) == len(args)
 
-        print "DEBUG: sqliter: and_: exprs types = " + str([type(x) for x in exprs])
+        dprint("sqliter: and_: exprs types = " + str([type(x) for x in exprs]))
         for expression in exprs:
             assert isinstance(expression, SQLExpression)
 
@@ -273,7 +277,7 @@ class Where(object):
         Returns:
             WhereComponent: An encapsulation of the expression constructed
         """
-        print "DEBUG: sqliter: build_comparison: col = %s val = %s" % (col, str(val))
+        dprint("sqliter: build_comparison: col = %s val = %s" % (col, str(val)))
         assert isinstance(col, str)
         assert not isinstance(val, SQLExpression)
         assert is_subclass(operator_class, ComparisonExpression)
@@ -293,7 +297,7 @@ class Where(object):
         Returns:
             `WhereComponent`: encapulsating the equality expression constructed
         """
-        print "DEBUG: sqliter: eq: col = %s val = %s" % (col, str(val))
+        dprint("sqliter: eq: col = %s val = %s" % (col, str(val)))
         return self.build_comparison(col=col, val=val, operator_class=Equals)
 
     def lt(self, col, val):
@@ -328,11 +332,11 @@ class DatabaseTable(object):
             col_tuple (tuple(pair)): An n-tuple of 2-tuples, each 2-tuple
                 a string representation of the column name and SQL type
         """
-        print "DEBUG: sqliter: set_cols entered with %d cols" % len(col_tuple)
+        dprint("sqliter: set_cols entered with %d cols" % len(col_tuple))
         self.cols = col_tuple
-        print "DEBUG: sqliter: set_cols set cols to %s" % str(self.cols)
+        dprint("sqliter: set_cols set cols to %s" % str(self.cols))
         self.col_names = [col[0] for col in self.cols]
-        print "DEBUG: sqliter: set_cols col_names are: %s" % str(self.col_names)
+        dprint("sqliter: set_cols col_names are: %s" % str(self.col_names))
 
     def get_create_statement(self):
         """Generate SQL statement to create this table"""
@@ -425,7 +429,7 @@ class DatabaseTable(object):
         Returns: (str, list): The INSERT statement and arglist
         """
         #Warn if any value doesn't seem to match column's SQL type
-        print "DEBUG: sqliter: get_insert: col_val_map = %s" % str(col_val_map)
+        dprint("sqliter: get_insert: col_val_map = %s" % str(col_val_map))
         self.check_types(col_val_map)
 
         #Go through map and build list of values and arglist for INSERT stmt
@@ -504,7 +508,7 @@ class DatabaseConnection(object):
         Raises: DatabaseReadError: If database version in sqlite file is not
             supported.
         """
-        print "DEBUG: sqliter: Resolving filepaths..."
+        dprint("sqliter: Resolving filepaths...")
         #First, resolve filepaths for SQLite3 database file and log file
         db_version = None
         if app_tuple is not None:
@@ -539,7 +543,7 @@ class DatabaseConnection(object):
         assert isinstance(self.db_filepath, str)
         assert isinstance(self.log_filepath, str)
 
-        print "DEBUG: sqliter: db_filepath: %s" % self.db_filepath
+        dprint("sqliter: db_filepath: %s" % self.db_filepath)
 
         #Test log writeability
         if not os.path.isfile(self.log_filepath):
@@ -547,7 +551,7 @@ class DatabaseConnection(object):
         if not os.access(self.log_filepath, os.W_OK):
             warn("Unable to write to log file '{0}'".format(self.log_filepath))
 
-        print "DEBUG: sqliter: log file must be writeable"
+        dprint("sqliter: log file must be writeable")
 
         #Try to connect to db
         if os.path.isfile(self.db_filepath):
@@ -613,13 +617,13 @@ class DatabaseConnection(object):
 
         Raises: DatabaseReadError
         """
-        print "DEBUG: fetch: stmt = '%s', arglist = %s" % (stmt, arglist)
+        dprint("fetch: stmt = '%s', arglist = %s" % (stmt, arglist))
         if arglist is None:
             arglist = ()
 
         try:
             rows = self.conn.cursor().execute(stmt, arglist).fetchall()
-            print "DEBUG: sqliter: fetch: Fetched %d rows" % len(rows)
+            dprint("sqliter: fetch: Fetched %d rows" % len(rows))
             return rows
         except (sqlite3.OperationalError), err:
             msg = combine_err_msgs(err, err_msg)
@@ -702,7 +706,7 @@ class DatabaseConnection(object):
 
         Raises: DatabaseWriteError if database's tables cannot be initialized
         """
-        print "DEBUG: sqliter: Entered table_init w/ %d app table(s)" % len(db_tables)
+        dprint("sqliter: Entered table_init w/ %d app table(s)" % len(db_tables))
         pysqliter_ver_table = DatabaseTable()
         pysqliter_ver_table.name = PYSQLITER_VERSION_TBL_NAME
         pysqliter_ver_table.set_cols((('version', 'TEXT'), ('url', 'TEXT')))
@@ -758,18 +762,18 @@ class DatabaseConnection(object):
 
         Raises: DatabaseWriteError if statement couldn't be executed
 
-        Returns: int: Number of changes made during this SQL connection.
+        Returns: int: Number of changes made executing the statement
         """
-        print "DEBUG: sql_execute: stmt = '%s', arglist = %s" % (stmt, arglist)
-        num_changes = -1
+        dprint("sql_execute: stmt = '%s', arglist = %s" % (stmt, arglist))
+        num_changes_previous = self.conn.total_changes
         try:
             if arglist is not None:
                 self.conn.cursor().execute(stmt, arglist)
             else:
                 self.conn.cursor().execute(stmt)
             self.conn.commit()
-            num_changes = self.conn.total_changes
-            print "DEBUG: sql_execute: %d changes made." % num_changes
+            num_changes = self.conn.total_changes - num_changes_previous
+            dprint("sql_execute: %d changes made." % num_changes)
             return num_changes
         except sqlite3.OperationalError, err:
             msg = "Unable to execute statement: {0}: {1}".format(stmt, err)
@@ -803,7 +807,7 @@ class DatabaseConnection(object):
         """
         assert isinstance(db_table, DatabaseTable)
         stmt, arglist = db_table.get_insert(col_val_map)
-        print "DEBUG: sqliter: insert: stmt = %s arglist = %s" % (stmt, str(arglist))
+        dprint("sqliter: insert: stmt = %s arglist = %s" % (stmt, str(arglist)))
         self.sql_execute(stmt, arglist)
 
     def select(self, col_names, **kwargs):
@@ -873,6 +877,8 @@ class DatabaseConnection(object):
             where (Optional[WhereComponent]): The WHERE clause used to specify
                 which rows are updated, built from the various expression
                 components that make up the WHERE clause.
+
+        Returns: bool: Whether any changes were made to database
         """
         db_table, where_component = get_table_and_where_comp(**kwargs)
 
@@ -883,7 +889,7 @@ class DatabaseConnection(object):
         num_cols_total = len(col_val_map)
         num_cols_added = 0
         for col in col_val_map:
-            val  = col_val_map[col]
+            val = col_val_map[col]
             assert db_table.is_valid_col(col)
 
             #TODO: could do type checking on value compared to col type here.
@@ -908,8 +914,15 @@ class DatabaseConnection(object):
             stmt = ''.join([stmt, ' ', str(where)])
             arglist = arglist + where_component.arglist
 
-        #TODO: could check number of changes returned by sql_execute
-        self.sql_execute(stmt, arglist)
+        num_changes = self.sql_execute(stmt, arglist)
+        if num_changes > 0:
+            return True
+        elif num_changes == 0:
+            return False
+        else:
+            warn("Expected 0 or more changes from update(), saw {0}".format(
+                num_changes))
+            return False
 
 # Global Functions
 
@@ -978,7 +991,7 @@ def xor(bool_a, bool_b):
 
 def _get_exprs(*args):
     """If expressions are `WhereComponent` objs, extract the SQLExpressions"""
-    print "DEBUG: sqliter._get_exprs: exprs = " + str([str(x) for x in args])
+    dprint("sqliter._get_exprs: exprs = " + str([str(x) for x in args]))
     ret_exprs = []
     for arg in args:
         if isinstance(arg, SQLExpression):
@@ -986,7 +999,7 @@ def _get_exprs(*args):
         elif isinstance(arg, WhereComponent):
             ret_exprs.append(arg.expr)
         else:
-            print "DEBUG: %s %s"% (str(type(arg)), str(args))
+            dprint("%s %s"% (str(type(arg)), str(args)))
             raise TypeError()
 
     return tuple(ret_exprs)
@@ -1001,22 +1014,15 @@ def all_subclasses(cls):
 
 def is_subclass(child_class, parent_class):
     """Maury Povich for classes"""
-    print "DEUBG: is_subclass: child class name is %s" % child_class.__name__               #DELETEME
-    print "DEBUG: is_subclass: child class is class? " + str(inspect.isclass(child_class))  #DELETEME
-    if not inspect.isclass(child_class):                                                    #DELETEME
-        return False                                                                        #DELETEME
-    parent_subclassess = all_subclasses(parent_class)                                       #DELETEME
-    print "DEBUG: is_subclass: parent subclasses: " + str(parent_subclassess)               #DELETEME
-
     return (inspect.isclass(child_class) and
-        child_class in all_subclasses(parent_class))
+            child_class in all_subclasses(parent_class))
 
 def remove_repeat_spaces(_str):
     """Remove repeated spaces from string
     Reference:
     http://stackoverflow.com/questions/2077897/substitute-multiple-whitespace-with-single-whitespace-in-python
     """
-    print "DEBUG: sqliter: remove_repeat_spaces: %s" % _str
+    dprint("sqliter: remove_repeat_spaces: %s" % _str)
     return re.sub(r'\s+', ' ', _str).strip()
 
 def get_table_and_where_comp(**kwargs):
@@ -1038,7 +1044,7 @@ def get_table_and_where_comp(**kwargs):
         else:
             raise ValueError(
                 "Invalid argument {0} to get_table_and_where_comp()".format(
-                arg_name))
+                    arg_name))
     assert isinstance(db_table, DatabaseTable)
     return (db_table, where_component)
 
@@ -1068,3 +1074,8 @@ def parameterize_val(val):
             resolved_val = Reserved.ARG_PLACEHOLDER.value
 
     return (resolved_val, arglist)
+
+def dprint(msg):
+    """Print debug statement to stdout"""
+    if ENALBE_DEBUG_PRINT:
+        print "DEBUG: {0}".format(str(msg))
